@@ -1,0 +1,6 @@
+*.py       filter=stripcomments
+*.yml      filter=stripcomments
+*.yaml     filter=stripcomments
+*.sh       filter=stripcomments
+*.html     filter=stripcomments
+Dockerfile filter=stripcomments
