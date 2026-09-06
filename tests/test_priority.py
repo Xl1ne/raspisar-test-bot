@@ -185,11 +185,34 @@ def test_edit_missing_lesson_rejected(conn, gid):
         storage.cancel_lesson(conn, HEADMAN, NOV5, "НЕТ ТАКОЙ", "Лек")
 
 
-def test_editing_cancelled_lesson_keeps_it_cancelled(conn, gid):
+def test_room_change_returns_cancelled_lesson_to_schedule(conn, gid):
     storage.save_collection(conn, gid, [_occ(NOV5, "БД", room="A")])
     storage.cancel_lesson(conn, HEADMAN, NOV5, "БД", "Лек")
     storage.change_room(conn, HEADMAN, NOV5, "БД", "Лек", "B")
 
     row = _find(storage.get_schedule(conn, gid), NOV5, "БД")
-    assert row["cancelled"] is True
+    assert row["cancelled"] is False
     assert row["room"] == "B"
+
+
+def test_restore_lifts_cancellation_and_keeps_other_edits(conn, gid):
+    storage.save_collection(conn, gid, [_occ(NOV5, "БД", room="A")])
+    storage.change_room(conn, HEADMAN, NOV5, "БД", "Лек", "B")
+    storage.cancel_lesson(conn, HEADMAN, NOV5, "БД", "Лек")
+    assert _find(storage.get_schedule(conn, gid), NOV5, "БД")["cancelled"] is True
+
+    storage.restore_lesson(conn, HEADMAN, NOV5, "БД", "Лек")
+
+    row = _find(storage.get_schedule(conn, gid), NOV5, "БД")
+    assert row["cancelled"] is False
+    assert row["room"] == "B"
+    assert row["source"] == "manual"
+
+
+def test_student_cannot_restore(conn, gid):
+    storage.save_collection(conn, gid, [_occ(NOV5, "БД")])
+    storage.subscribe(conn, STUDENT, storage.get_group(conn, gid)["invite_code"])
+    storage.cancel_lesson(conn, HEADMAN, NOV5, "БД", "Лек")
+    with pytest.raises(storage.PermissionDenied):
+        storage.restore_lesson(conn, STUDENT, NOV5, "БД", "Лек")
+    assert _find(storage.get_schedule(conn, gid), NOV5, "БД")["cancelled"] is True

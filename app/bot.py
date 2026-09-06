@@ -424,7 +424,10 @@ async def edit_day(callback: CallbackQuery, state: FSMContext) -> None:
     await state.set_state(Editing.lesson)
     await state.update_data(
         day=day.isoformat(),
-        lessons=[{"subject": r["subject"], "kind": r["kind"]} for r in lessons],
+        lessons=[
+            {"subject": r["subject"], "kind": r["kind"], "cancelled": r["cancelled"]}
+            for r in lessons
+        ],
     )
     rows = []
     for i, r in enumerate(lessons):
@@ -442,16 +445,22 @@ async def edit_pick(callback: CallbackQuery, state: FSMContext) -> None:
     if not 0 <= idx < len(lessons):
         raise BadChoice()
     chosen = lessons[idx]
-    await state.update_data(subject=chosen["subject"], kind=chosen["kind"])
+    cancelled = bool(chosen.get("cancelled"))
+    await state.update_data(subject=chosen["subject"], kind=chosen["kind"], cancelled=cancelled)
     await state.set_state(Editing.action)
+    if cancelled:
+        text = (
+            f"❌ {chosen['subject']} ({chosen['kind']}) отменено. Перенос или смена аудитории "
+            "вернут занятие в расписание. Что сделать?"
+        )
+        first = ("Вернуть занятие", "editact:restore")
+    else:
+        text = f"{chosen['subject']} ({chosen['kind']}). Что сделать?"
+        first = ("Отменить занятие", "editact:cancel")
     await callback.message.answer(
-        f"{chosen['subject']} ({chosen['kind']}). Что сделать?",
+        text,
         reply_markup=_kb(
-            [
-                [("Отменить занятие", "editact:cancel")],
-                [("Перенести время", "editact:move")],
-                [("Сменить аудиторию", "editact:room")],
-            ]
+            [[first], [("Перенести время", "editact:move")], [("Сменить аудиторию", "editact:room")]]
         ),
     )
 
@@ -467,6 +476,24 @@ async def edit_cancel(callback: CallbackQuery, state: FSMContext) -> None:
     await _notify_edit(
         callback.bot, gid, callback.from_user.id,
         f"❗ Изменение расписания: {day:%d.%m} {data['subject']} ({data['kind']}) — занятие отменено.",
+    )
+    await _reshow(callback.message, callback.from_user.id)
+
+
+@dp.callback_query(Editing.action, F.data == "editact:restore")
+async def edit_restore(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
+    data = await state.get_data()
+    day = date.fromisoformat(data["day"])
+    gid = await _db(storage.restore_lesson, callback.from_user.id, day, data["subject"], data["kind"])
+    await state.clear()
+    await callback.message.answer(
+        f"{data['subject']} ({data['kind']}) на {day:%d.%m} возвращено в расписание."
+    )
+    await _notify_edit(
+        callback.bot, gid, callback.from_user.id,
+        f"❗ Изменение расписания: {day:%d.%m} {data['subject']} ({data['kind']})"
+        " — отмена снята, занятие состоится.",
     )
     await _reshow(callback.message, callback.from_user.id)
 
@@ -496,13 +523,14 @@ async def edit_pair(callback: CallbackQuery, state: FSMContext) -> None:
         timeutil.to_utc(day, start_hhmm), timeutil.to_utc(day, end_hhmm),
     )
     await state.clear()
+    revived = "возвращено в расписание и " if data.get("cancelled") else ""
     await callback.message.answer(
-        f"{data['subject']} ({data['kind']}) на {day:%d.%m} перенесено на {start_hhmm}."
+        f"{data['subject']} ({data['kind']}) на {day:%d.%m} {revived}перенесено на {start_hhmm}."
     )
     await _notify_edit(
         callback.bot, gid, callback.from_user.id,
         f"❗ Изменение расписания: {day:%d.%m} {data['subject']} ({data['kind']})"
-        f" — перенесено на {start_hhmm}.",
+        f" — {revived}перенесено на {start_hhmm}.",
     )
     await _reshow(callback.message, callback.from_user.id)
 
@@ -526,11 +554,14 @@ async def edit_room_set(message: Message, state: FSMContext) -> None:
         storage.change_room, message.from_user.id, day, data["subject"], data["kind"], room
     )
     await state.clear()
-    await message.answer(f"{data['subject']} ({data['kind']}) на {day:%d.%m}: аудитория {room}.")
+    revived = "возвращено в расписание, " if data.get("cancelled") else ""
+    await message.answer(
+        f"{data['subject']} ({data['kind']}) на {day:%d.%m}: {revived}аудитория {room}."
+    )
     await _notify_edit(
         message.bot, gid, message.from_user.id,
         f"❗ Изменение расписания: {day:%d.%m} {data['subject']} ({data['kind']})"
-        f" — новая аудитория {room}.",
+        f" — {revived}новая аудитория {room}.",
     )
     await _reshow(message, message.from_user.id)
 
@@ -597,13 +628,42 @@ async def quiet_set(message: Message, state: FSMContext) -> None:
     await _reshow(message, message.from_user.id)
 
 
-@dp.callback_query(F.data == "unsub")
-async def unsubscribe(callback: CallbackQuery, state: FSMContext) -> None:
-    await callback.answer()
+async def _leave(callback):
     group = await _db(storage.unsubscribe, callback.from_user.id)
     await callback.message.answer(
         f"Вы отписались от группы {group['name']}. Сообщения больше не будут приходить."
     )
+    await _reshow(callback.message, callback.from_user.id)
+
+
+@dp.callback_query(F.data == "unsub")
+async def unsubscribe(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
+    try:
+        others = await asyncio.to_thread(_members, callback.from_user.id)
+    except storage.PermissionDenied:
+        others = None
+    if others == []:
+        await callback.message.answer(
+            "Вы единственный участник и староста. После выхода группа останется без "
+            "старосты; код приглашения продолжит работать, и вернуться по нему можно в любой "
+            "момент. Отписаться?",
+            reply_markup=_kb([[("Да, отписаться", "unsub:yes"), ("Нет", "unsub:no")]]),
+        )
+        return
+    await _leave(callback)
+
+
+@dp.callback_query(F.data == "unsub:yes")
+async def unsubscribe_confirmed(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await _leave(callback)
+
+
+@dp.callback_query(F.data == "unsub:no")
+async def unsubscribe_declined(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await callback.message.answer("Хорошо, вы остаётесь в группе.")
     await _reshow(callback.message, callback.from_user.id)
 
 

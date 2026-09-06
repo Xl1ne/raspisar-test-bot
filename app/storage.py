@@ -310,16 +310,21 @@ def cancel_lesson(conn, executor_id, day, subject, kind):
     return _write_manual(conn, executor_id, day, subject, kind, cancelled=1)
 
 
+def restore_lesson(conn, executor_id, day, subject, kind):
+    return _write_manual(conn, executor_id, day, subject, kind, cancelled=0)
+
+
 def reschedule_lesson(conn, executor_id, day, subject, kind, new_start, new_end):
     return _write_manual(
         conn, executor_id, day, subject, kind,
         time_start=new_start.astimezone(timezone.utc).isoformat(),
         time_end=new_end.astimezone(timezone.utc).isoformat(),
+        cancelled=0,
     )
 
 
 def change_room(conn, executor_id, day, subject, kind, new_room):
-    return _write_manual(conn, executor_id, day, subject, kind, room=new_room)
+    return _write_manual(conn, executor_id, day, subject, kind, room=new_room, cancelled=0)
 
 
 def _add_subscriber(conn, tg_user_id, group_id):
@@ -334,7 +339,7 @@ def _add_subscriber(conn, tg_user_id, group_id):
 def set_remind_minutes(conn, tg_user_id, minutes):
     if not (config.REMIND_MIN_MINUTES <= minutes <= config.REMIND_MAX_MINUTES):
         raise ValueError(
-            f"интервал должен быть от {config.REMIND_MIN_MINUTES} до {config.REMIND_MAX_MINUTES} минут"
+            f"Интервал должен быть от {config.REMIND_MIN_MINUTES} до {config.REMIND_MAX_MINUTES} минут."
         )
     with conn:
         cur = conn.execute(
