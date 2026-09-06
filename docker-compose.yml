@@ -18,11 +18,3 @@ services:
     volumes:
       - .:/app
     restart: unless-stopped
-
-  source:
-    image: nginx:1.31.5-alpine
-    volumes:
-      - ./emulator:/usr/share/nginx/html:ro
-    ports:
-      - "8081:80"
-    restart: unless-stopped

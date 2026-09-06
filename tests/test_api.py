@@ -18,14 +18,14 @@ def db(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DB_PATH", path)
     storage.ensure_schema()
     conn = storage.connect()
-    gid = storage.create_group(conn, "ОБ-09.03.03.02-41", "http://source/", "INV1", 1, "known-code")
-    storage.save_collection(conn, gid, [_occ("ЦМЗАД")])
+    group = storage.register_group(conn, 1, "ОБ-09.03.03.02-41", "http://source/")
+    storage.save_collection(conn, group["id"], [_occ("ЦМЗАД")])
     conn.close()
-    return path
+    return group["calendar_code"]
 
 
 def test_endpoint_returns_calendar_for_known_code(db):
-    response = api.calendar("known-code")
+    response = api.calendar(db)
     assert response.status_code == 200
     assert response.media_type.startswith("text/calendar")
     assert b"BEGIN:VCALENDAR" in response.body

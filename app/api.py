@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Response
+from fastapi.staticfiles import StaticFiles
 
 from app import storage
 from app.publication import render_calendar
@@ -13,6 +14,7 @@ async def lifespan(_app):
 
 
 app = FastAPI(title="Расписарь", lifespan=lifespan)
+app.mount("/emu", StaticFiles(directory="emulator"), name="emulator")
 
 
 @app.get("/health")

@@ -24,10 +24,6 @@ _ROMAN = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII":
 _STREAM_PREFIX = re.compile(r"^П:\d+/")
 _KIND = re.compile(r"\(([^)]+)\)\s*$")
 
-GROUP_COLUMNS = 6
-PAIR_CELL_OFFSET = GROUP_COLUMNS + 1
-DAY_ROW_CELLS = GROUP_COLUMNS + 2
-
 
 @dataclass(frozen=True)
 class TemplateRow:
@@ -96,20 +92,21 @@ def parse(html, group_code):
     if col is None or grid is None:
         return []
 
+    groups = len(group_headers)
     rows = []
     weekday = None
     for row in grid.find_all("tr", recursive=False):
         if row is header_row:
             continue
         cells = row.find_all("td", recursive=False)
-        if len(cells) < PAIR_CELL_OFFSET:
+        if len(cells) < groups + 1:
             continue
-        if len(cells) == DAY_ROW_CELLS:
+        if len(cells) == groups + 2:
             weekday = _DAYS.get(_compact(cells[0].get_text()))
-        pair = _ROMAN.get(cells[-PAIR_CELL_OFFSET].get_text().strip())
+        pair = _ROMAN.get(cells[-(groups + 1)].get_text().strip())
         if weekday is None or pair is None:
             continue
-        rows.extend(_parse_cell(cells[-GROUP_COLUMNS:][col], weekday, pair))
+        rows.extend(_parse_cell(cells[-groups:][col], weekday, pair))
     return rows
 
 

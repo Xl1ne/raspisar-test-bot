@@ -4,6 +4,12 @@
 .env
 .DS_Store
 docs
+.scratch
+data
+*.db
+CLAUDE.md
+CONTEXT.md
+emulator/README.md
 __pycache__
 *.pyc
 .pytest_cache

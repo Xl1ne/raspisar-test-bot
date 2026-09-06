@@ -23,14 +23,38 @@ def now_utc():
     return datetime.now(tz=timezone.utc)
 
 
-def to_utc(day, hhmm):
+def today_msk():
+    return datetime.now(tz=_MSK).date()
+
+
+def week_bounds(day):
+    monday = _monday(day)
+    return monday, monday + timedelta(days=6)
+
+
+def parse_hhmm(hhmm):
     hour, minute = (int(part) for part in hhmm.split(":"))
-    local = datetime.combine(day, time(hour, minute), tzinfo=_MSK)
+    return time(hour, minute)
+
+
+def to_utc(day, hhmm):
+    local = datetime.combine(day, parse_hhmm(hhmm), tzinfo=_MSK)
     return local.astimezone(timezone.utc)
 
 
 def to_display(moment):
     return moment.astimezone(_MSK)
+
+
+def in_quiet_hours(moment, start_hhmm, end_hhmm):
+    if not start_hhmm or not end_hhmm:
+        return False
+    local = to_display(moment).time()
+    start = parse_hhmm(start_hhmm)
+    end = parse_hhmm(end_hhmm)
+    if start <= end:
+        return start <= local < end
+    return local >= start or local < end
 
 
 def expand(rows, study_start, semester_end):

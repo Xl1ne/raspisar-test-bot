@@ -11,6 +11,22 @@ FETCH_TIMEOUT = int(os.getenv("RASPISAR_FETCH_TIMEOUT", "15"))
 
 DB_PATH = os.getenv("RASPISAR_DB", "data/raspisar.db")
 
+PUBLIC_BASE_URL = os.getenv("RASPISAR_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+
+REMIND_DEFAULT_MINUTES = int(os.getenv("RASPISAR_REMIND_DEFAULT", "60"))
+REMIND_MIN_MINUTES = int(os.getenv("RASPISAR_REMIND_MIN", "5"))
+REMIND_MAX_MINUTES = int(os.getenv("RASPISAR_REMIND_MAX", "180"))
+
+ANNOUNCEMENT_DAILY_LIMIT = int(os.getenv("RASPISAR_ANNOUNCE_LIMIT", "5"))
+
+DISPATCH_INTERVAL_SECONDS = int(os.getenv("RASPISAR_DISPATCH_INTERVAL", "60"))
+
+EDIT_HORIZON_DAYS = int(os.getenv("RASPISAR_EDIT_HORIZON_DAYS", "30"))
+
+BACKUP_HOUR = int(os.getenv("RASPISAR_BACKUP_HOUR", "4"))
+BACKUP_DIR = os.getenv("RASPISAR_BACKUP_DIR", "data/backups")
+BACKUP_KEEP = int(os.getenv("RASPISAR_BACKUP_KEEP", "7"))
+
 BELL = {
     1: ("08:20", "09:40"),
     2: ("09:50", "11:10"),

@@ -65,3 +65,14 @@ def test_expansion_never_exceeds_semester_end():
     assert dates
     assert max(dates) <= SEMESTER_END
     assert min(dates) >= STUDY_START
+
+
+def test_week_bounds_are_monday_to_sunday():
+    from app.timeutil import week_bounds
+
+    for probe in (date(2026, 11, 4), date(2026, 11, 9), date(2026, 11, 15)):
+        monday, sunday = week_bounds(probe)
+        assert monday.weekday() == 0
+        assert sunday.weekday() == 6
+        assert monday <= probe <= sunday
+        assert (sunday - monday).days == 6

@@ -1,18 +1,9 @@
-import sqlite3
 from datetime import date, datetime, timezone
 
 import pytest
 
 from app import storage
 from app.publication import render_calendar
-
-
-@pytest.fixture
-def conn():
-    c = sqlite3.connect(":memory:")
-    storage.init_db(c)
-    yield c
-    c.close()
 
 
 def _occ(subject):
@@ -26,14 +17,14 @@ def _occ(subject):
 
 
 def test_render_returns_ics_for_known_code(conn):
-    gid = storage.create_group(conn, "ОБ-09.03.03.02-41", "http://source/", "INV1", 1, "secret-code")
-    storage.save_collection(conn, gid, [_occ("ЦМЗАД")])
-    body = render_calendar(conn, "secret-code")
+    group = storage.register_group(conn, 1, "ОБ-09.03.03.02-41", "http://source/")
+    storage.save_collection(conn, group["id"], [_occ("ЦМЗАД")])
+    body = render_calendar(conn, group["calendar_code"])
     assert b"BEGIN:VCALENDAR" in body
     assert "ЦМЗАД".encode("utf-8") in body
 
 
 def test_wrong_code_raises_not_found(conn):
-    storage.create_group(conn, "ОБ-09.03.03.02-41", "http://source/", "INV1", 1, "secret-code")
+    storage.register_group(conn, 1, "ОБ-09.03.03.02-41", "http://source/")
     with pytest.raises(LookupError):
         render_calendar(conn, "guessed-code")
